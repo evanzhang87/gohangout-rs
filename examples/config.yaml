@@ -1,0 +1,98 @@
+# Example configuration for Gohangout-rs
+# This is a YAML configuration file similar to GoHangout's format
+
+# Number of worker threads for processing
+workers: 4
+
+# Batch size for processing events
+batch_size: 1000
+
+# Buffer size for internal channels
+buffer_size: 10000
+
+# Input plugins configuration
+inputs:
+  # Kafka input
+  - type: kafka
+    config:
+      brokers: "localhost:9092"
+      topic: "logs"
+      group_id: "gohangout-group"
+      auto_offset_reset: "earliest"
+      enable_auto_commit: false
+  
+  # STDIN input (for testing)
+  - type: stdin
+    config:
+      codec: "json"
+      add_newline: true
+
+# Filter plugins configuration
+filters:
+  # Add host field
+  - type: add
+    config:
+      field: "host"
+      value: "localhost"
+  
+  # Parse timestamp
+  - type: date
+    config:
+      field: "timestamp"
+      formats:
+        - "RFC3339"
+        - "ISO8601"
+      target_field: "@timestamp"
+  
+  # Grok parsing for log messages
+  - type: grok
+    config:
+      field: "message"
+      patterns:
+        - "%{COMMONAPACHELOG}"
+        - "%{SYSLOGTIMESTAMP:timestamp} %{SYSLOGHOST:hostname} %{DATA:program}(?:\[%{POSINT:pid}\])?: %{GREEDYDATA:message}"
+      remove_field: true
+  
+  # Regular expression replacement
+  - type: gsub
+    config:
+      field: "message"
+      pattern: "password=\\w+"
+      replacement: "password=***"
+
+# Output plugins configuration
+outputs:
+  # Elasticsearch output
+  - type: elasticsearch
+    config:
+      hosts:
+        - "http://localhost:9200"
+      index: "logs-%{+YYYY.MM.dd}"
+      bulk_size: 1000
+      flush_interval: "5s"
+      timeout: "30s"
+  
+  # ClickHouse output
+  - type: clickhouse
+    config:
+      host: "localhost"
+      port: 9000
+      database: "logs"
+      table: "log_events"
+      username: "default"
+      password: ""
+      bulk_size: 10000
+  
+  # STDOUT output (for debugging)
+  - type: stdout
+    config:
+      format: "json"
+      pretty: true
+  
+  # Kafka output (for reprocessing)
+  - type: kafka
+    config:
+      brokers: "localhost:9092"
+      topic: "processed-logs"
+      compression: "gzip"
+      required_acks: 1
