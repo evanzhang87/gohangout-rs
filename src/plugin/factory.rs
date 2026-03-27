@@ -1,4 +1,5 @@
 //! Plugin factory for creating plugin instances from configuration
+#![allow(dead_code)]
 
 use crate::event::Event;
 use crate::plugin::error::{PluginError, PluginResult};
@@ -43,9 +44,6 @@ impl PluginFactory {
         // Create plugin instance
         let mut plugin = self.registry.create_input(config.name())?;
         
-        // Apply configuration
-        self.apply_config(&mut plugin, config)?;
-        
         // Initialize plugin
         plugin.initialize()?;
         
@@ -60,9 +58,6 @@ impl PluginFactory {
         // Create plugin instance
         let mut plugin = self.registry.create_filter(config.name())?;
         
-        // Apply configuration
-        self.apply_config(&mut plugin, config)?;
-        
         // Initialize plugin
         plugin.initialize()?;
         
@@ -76,9 +71,6 @@ impl PluginFactory {
         
         // Create plugin instance
         let mut plugin = self.registry.create_output(config.name())?;
-        
-        // Apply configuration
-        self.apply_config(&mut plugin, config)?;
         
         // Initialize plugin
         plugin.initialize()?;
@@ -165,20 +157,7 @@ impl PluginFactory {
         Ok(())
     }
     
-    /// Apply configuration to a plugin
-    fn apply_config<P>(&self, plugin: &mut P, config: &PluginConfig) -> PluginResult<()>
-    where
-        P: ?Sized,
-    {
-        // This is a placeholder implementation
-        // In a real implementation, we would use reflection or a configuration trait
-        // to apply configuration values to the plugin
-        
-        // For now, we just validate that the plugin can accept the configuration
-        plugin.validate_config()?;
-        
-        Ok(())
-    }
+
 }
 
 impl Default for PluginFactory {
@@ -189,37 +168,8 @@ impl Default for PluginFactory {
 
 // Built-in plugin implementations
 
-/// Standard input plugin (reads from stdin)
-pub struct StdinInput {
-    name: String,
-    config: HashMap<String, serde_json::Value>,
-}
-
-impl StdinInput {
-    /// Create a new stdin input plugin
-    pub fn new() -> Self {
-        Self {
-            name: "stdin".to_string(),
-            config: HashMap::new(),
-        }
-    }
-}
-
-impl Input for StdinInput {
-    fn read(&mut self) -> PluginResult<Option<Event>> {
-        // Simplified implementation
-        // In a real implementation, this would read from stdin
-        Ok(None)
-    }
-    
-    fn name(&self) -> &str {
-        &self.name
-    }
-    
-    fn config(&self) -> &HashMap<String, serde_json::Value> {
-        &self.config
-    }
-}
+// Note: StdinInput is now defined in src/input/stdin.rs
+// We'll use the one from the input module
 
 /// Standard output plugin (writes to stdout)
 pub struct StdoutOutput {
@@ -237,6 +187,32 @@ impl StdoutOutput {
     }
 }
 
+impl crate::plugin::Plugin for StdoutOutput {
+    fn name(&self) -> &str {
+        &self.name
+    }
+    
+    fn config(&self) -> &HashMap<String, serde_json::Value> {
+        &self.config
+    }
+    
+    fn plugin_type(&self) -> crate::plugin::PluginType {
+        crate::plugin::PluginType::Output
+    }
+    
+    fn initialize(&mut self) -> PluginResult<()> {
+        Ok(())
+    }
+    
+    fn shutdown(&mut self) -> PluginResult<()> {
+        Ok(())
+    }
+    
+    fn validate_config(&self) -> PluginResult<()> {
+        Ok(())
+    }
+}
+
 impl Output for StdoutOutput {
     fn write(&self, event: Event) -> PluginResult<()> {
         // Simplified implementation
@@ -247,14 +223,6 @@ impl Output for StdoutOutput {
     
     fn flush(&self) -> PluginResult<()> {
         Ok(())
-    }
-    
-    fn name(&self) -> &str {
-        &self.name
-    }
-    
-    fn config(&self) -> &HashMap<String, serde_json::Value> {
-        &self.config
     }
 }
 
@@ -282,18 +250,36 @@ impl AddFieldFilter {
     }
 }
 
-impl Filter for AddFieldFilter {
-    fn process(&self, mut event: Event) -> PluginResult<Event> {
-        event.set(&self.field, self.value.clone());
-        Ok(event)
-    }
-    
+impl crate::plugin::Plugin for AddFieldFilter {
     fn name(&self) -> &str {
         &self.name
     }
     
     fn config(&self) -> &HashMap<String, serde_json::Value> {
         &self.config
+    }
+    
+    fn plugin_type(&self) -> crate::plugin::PluginType {
+        crate::plugin::PluginType::Filter
+    }
+    
+    fn initialize(&mut self) -> PluginResult<()> {
+        Ok(())
+    }
+    
+    fn shutdown(&mut self) -> PluginResult<()> {
+        Ok(())
+    }
+    
+    fn validate_config(&self) -> PluginResult<()> {
+        Ok(())
+    }
+}
+
+impl Filter for AddFieldFilter {
+    fn process(&self, mut event: Event) -> PluginResult<Event> {
+        event.set(&self.field, self.value.clone());
+        Ok(event)
     }
 }
 
@@ -303,7 +289,7 @@ pub fn default_factory() -> PluginFactory {
     
     // Register built-in input plugins
     factory.register_input("stdin", || {
-        Ok(Box::new(StdinInput::new()) as Box<dyn Input>)
+        Ok(Box::new(crate::input::StdinInput::default()) as Box<dyn Input>)
     });
     
     // Register built-in filter plugins
@@ -328,31 +314,58 @@ mod tests {
     use serde_json::json;
     
     struct TestInputImpl;
+    impl Plugin for TestInputImpl {
+        fn name(&self) -> &str { "test_input" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Input }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
+    }
     impl Input for TestInputImpl {
         fn read(&mut self) -> PluginResult<Option<Event>> {
             Ok(Some(Event::new(json!({"test": "input"}))))
         }
-        fn name(&self) -> &str { "test_input" }
-        fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
     }
     
     struct TestFilterImpl;
+    impl Plugin for TestFilterImpl {
+        fn name(&self) -> &str { "test_filter" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Filter }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
+    }
     impl Filter for TestFilterImpl {
         fn process(&self, event: Event) -> PluginResult<Event> {
             let mut event = event;
             event.set("processed", json!(true));
             Ok(event)
         }
-        fn name(&self) -> &str { "test_filter" }
-        fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
     }
     
     struct TestOutputImpl;
+    impl Plugin for TestOutputImpl {
+        fn name(&self) -> &str { "test_output" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Output }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
+    }
     impl Output for TestOutputImpl {
         fn write(&self, _event: Event) -> PluginResult<()> { Ok(()) }
         fn flush(&self) -> PluginResult<()> { Ok(()) }
-        fn name(&self) -> &str { "test_output" }
-        fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
     }
     
     #[test]
@@ -396,13 +409,17 @@ mod tests {
         let config = PluginConfig::new("unknown", PluginType::Input);
         let result = factory.create_input(&config);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), PluginError::NotFound(_)));
+        if let Err(e) = result {
+            assert!(matches!(e, PluginError::NotFound(_)));
+        }
         
         // Empty name should fail
         let config = PluginConfig::new("", PluginType::Input);
         let result = factory.create_input(&config);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), PluginError::InvalidName(_)));
+        if let Err(e) = result {
+            assert!(matches!(e, PluginError::InvalidName(_)));
+        }
     }
     
     #[test]

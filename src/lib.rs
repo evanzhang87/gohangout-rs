@@ -5,9 +5,11 @@
 
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
+#![allow(dead_code)]
 
 pub mod config;
 pub mod event;
+pub mod input;
 pub mod plugin;
 pub mod watcher;
 
@@ -16,7 +18,9 @@ pub mod prelude {
     pub use crate::config::{AppConfig, InputConfig, FilterConfig, OutputConfig};
     pub use crate::event::{Event, EventTrait, PipelineTrait, ProcessorTrait};
     pub use crate::event::{SimplePipeline, PipelineError};
+    pub use crate::input::{StdinInput, Decoder, JsonDecoder, PlainDecoder, LineDecoder};
     pub use crate::plugin::{Input, Filter, Output, Plugin, PluginType, PluginConfig};
-    pub use crate::plugin::{PluginError, PluginRegistry, PluginManager, PluginFactory};
+    pub use crate::plugin::{PluginError, PluginResult, PluginRegistry, PluginManager, PluginFactory};
+    pub use crate::plugin::traits::{InputStats, FilterStats, OutputStats};
     pub use crate::watcher::ConfigWatcher;
 }

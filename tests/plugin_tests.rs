@@ -9,17 +9,21 @@ use std::collections::HashMap;
 fn test_input_trait_basic() {
     struct TestInput;
     
+    impl Plugin for TestInput {
+        fn name(&self) -> &str { "test_input" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Input }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
+    }
+    
     impl Input for TestInput {
         fn read(&mut self) -> Result<Option<Event>, PluginError> {
             Ok(Some(Event::new(json!({"test": "data"}))))
-        }
-        
-        fn name(&self) -> &str {
-            "test_input"
-        }
-        
-        fn config(&self) -> &HashMap<String, serde_json::Value> {
-            &HashMap::new()
         }
     }
     
@@ -34,19 +38,23 @@ fn test_input_trait_basic() {
 fn test_filter_trait_basic() {
     struct TestFilter;
     
+    impl Plugin for TestFilter {
+        fn name(&self) -> &str { "test_filter" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Filter }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
+    }
+    
     impl Filter for TestFilter {
         fn process(&self, event: Event) -> Result<Event, PluginError> {
             let mut event = event;
             event.set("processed", json!(true));
             Ok(event)
-        }
-        
-        fn name(&self) -> &str {
-            "test_filter"
-        }
-        
-        fn config(&self) -> &HashMap<String, serde_json::Value> {
-            &HashMap::new()
         }
     }
     
@@ -64,18 +72,22 @@ fn test_output_trait_basic() {
         written: std::sync::Mutex<Vec<Event>>,
     }
     
+    impl Plugin for TestOutput {
+        fn name(&self) -> &str { "test_output" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Output }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
+    }
+    
     impl Output for TestOutput {
         fn write(&self, event: Event) -> Result<(), PluginError> {
             self.written.lock().unwrap().push(event);
             Ok(())
-        }
-        
-        fn name(&self) -> &str {
-            "test_output"
-        }
-        
-        fn config(&self) -> &HashMap<String, serde_json::Value> {
-            &HashMap::new()
         }
         
         fn flush(&self) -> Result<(), PluginError> {
@@ -292,7 +304,10 @@ impl Input for TestInput {
     }
     
     fn name(&self) -> &str { "test_input" }
-    fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
+    fn config(&self) -> &HashMap<String, serde_json::Value> { 
+        static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+        CONFIG.get_or_init(|| HashMap::new())
+    }
 }
 
 struct TestFilter;
@@ -304,7 +319,10 @@ impl Filter for TestFilter {
     }
     
     fn name(&self) -> &str { "test_filter" }
-    fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
+    fn config(&self) -> &HashMap<String, serde_json::Value> { 
+        static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+        CONFIG.get_or_init(|| HashMap::new())
+    }
 }
 
 struct TestOutput {
@@ -317,6 +335,9 @@ impl Output for TestOutput {
     }
     
     fn name(&self) -> &str { "test_output" }
-    fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
+    fn config(&self) -> &HashMap<String, serde_json::Value> { 
+        static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+        CONFIG.get_or_init(|| HashMap::new())
+    }
     fn flush(&self) -> Result<(), PluginError> { Ok(()) }
 }

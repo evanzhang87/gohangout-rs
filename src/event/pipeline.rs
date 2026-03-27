@@ -14,7 +14,9 @@ pub enum PipelineError {
     /// Batch processing error
     #[error("Batch processing error at index {index}: {error}")]
     BatchError {
+        /// The index of the event that caused the error
         index: usize,
+        /// The error message
         error: String,
     },
     

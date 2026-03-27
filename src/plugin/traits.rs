@@ -1,7 +1,7 @@
 //! Plugin trait definitions
 
 use crate::event::Event;
-use crate::plugin::error::{PluginError, PluginResult};
+use crate::plugin::error::PluginResult;
 use std::collections::HashMap;
 
 /// Plugin type enumeration

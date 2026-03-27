@@ -28,7 +28,9 @@ pub enum PluginError {
     /// Plugin type mismatch
     #[error("Plugin type mismatch: expected {expected}, got {actual}")]
     TypeMismatch {
+        /// Expected plugin type
         expected: String,
+        /// Actual plugin type
         actual: String,
     },
     

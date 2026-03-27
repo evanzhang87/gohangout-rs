@@ -206,34 +206,62 @@ impl std::fmt::Debug for PluginRegistry {
 mod tests {
     use super::*;
     use crate::event::Event;
+    use crate::plugin::traits::Plugin;
     use serde_json::json;
     
     struct TestInput;
+    impl Plugin for TestInput {
+        fn name(&self) -> &str { "test_input" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Input }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
+    }
     impl Input for TestInput {
         fn read(&mut self) -> PluginResult<Option<Event>> {
             Ok(Some(Event::new(json!({"test": "input"}))))
         }
-        fn name(&self) -> &str { "test_input" }
-        fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
     }
     
     struct TestFilter;
+    impl Plugin for TestFilter {
+        fn name(&self) -> &str { "test_filter" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Filter }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
+    }
     impl Filter for TestFilter {
         fn process(&self, event: Event) -> PluginResult<Event> {
             let mut event = event;
             event.set("filtered", json!(true));
             Ok(event)
         }
-        fn name(&self) -> &str { "test_filter" }
-        fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
     }
     
     struct TestOutput;
+    impl Plugin for TestOutput {
+        fn name(&self) -> &str { "test_output" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Output }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
+    }
     impl Output for TestOutput {
         fn write(&self, _event: Event) -> PluginResult<()> { Ok(()) }
         fn flush(&self) -> PluginResult<()> { Ok(()) }
-        fn name(&self) -> &str { "test_output" }
-        fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
     }
     
     #[test]
@@ -315,6 +343,8 @@ mod tests {
         // Try to create non-existent plugin
         let result = registry.create_input("nonexistent");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), PluginError::NotFound(_)));
+        if let Err(e) = result {
+            assert!(matches!(e, PluginError::NotFound(_)));
+        }
     }
 }

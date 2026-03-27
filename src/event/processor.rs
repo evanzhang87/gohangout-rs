@@ -1,4 +1,5 @@
 //! Processor implementations
+#![allow(dead_code)]
 
 use crate::event::{Event, ProcessorTrait};
 use std::error::Error;

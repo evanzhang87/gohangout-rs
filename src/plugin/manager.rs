@@ -94,7 +94,7 @@ impl PluginManager {
     }
     
     /// Get a mutable input plugin
-    pub fn get_input_mut(&mut self, name: &str) -> Option<&mut dyn Input> {
+    pub fn get_input_mut(&mut self, name: &str) -> Option<&mut (dyn Input + 'static)> {
         self.inputs.get_mut(name).map(|p| p.as_mut())
     }
     
@@ -278,10 +278,23 @@ impl std::fmt::Debug for PluginManager {
 mod tests {
     use super::*;
     use crate::event::Event;
+    use crate::plugin::traits::Plugin;
     use serde_json::json;
     
     struct TestInput {
         count: usize,
+    }
+    
+    impl Plugin for TestInput {
+        fn name(&self) -> &str { "test_input" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Input }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
     }
     
     impl Input for TestInput {
@@ -293,23 +306,44 @@ mod tests {
                 Ok(None)
             }
         }
-        fn name(&self) -> &str { "test_input" }
-        fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
     }
     
     struct TestFilter;
+    
+    impl Plugin for TestFilter {
+        fn name(&self) -> &str { "test_filter" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Filter }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
+    }
+    
     impl Filter for TestFilter {
         fn process(&self, event: Event) -> PluginResult<Event> {
             let mut event = event;
             event.set("filtered", json!(true));
             Ok(event)
         }
-        fn name(&self) -> &str { "test_filter" }
-        fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
     }
     
     struct TestOutput {
         written: std::sync::Mutex<Vec<Event>>,
+    }
+    
+    impl Plugin for TestOutput {
+        fn name(&self) -> &str { "test_output" }
+        fn config(&self) -> &HashMap<String, serde_json::Value> { 
+            static CONFIG: std::sync::OnceLock<HashMap<String, serde_json::Value>> = std::sync::OnceLock::new();
+            CONFIG.get_or_init(|| HashMap::new())
+        }
+        fn plugin_type(&self) -> PluginType { PluginType::Output }
+        fn initialize(&mut self) -> PluginResult<()> { Ok(()) }
+        fn shutdown(&mut self) -> PluginResult<()> { Ok(()) }
+        fn validate_config(&self) -> PluginResult<()> { Ok(()) }
     }
     
     impl Output for TestOutput {
@@ -318,8 +352,6 @@ mod tests {
             Ok(())
         }
         fn flush(&self) -> PluginResult<()> { Ok(()) }
-        fn name(&self) -> &str { "test_output" }
-        fn config(&self) -> &HashMap<String, serde_json::Value> { &HashMap::new() }
     }
     
     #[test]

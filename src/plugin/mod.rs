@@ -3,14 +3,14 @@
 //! This module defines the plugin architecture for input, filter, and output
 //! plugins, along with registration and management utilities.
 
-mod traits;
-mod error;
+pub mod traits;
+pub mod error;
 mod registry;
 mod manager;
 mod factory;
 
 pub use traits::{Input, Filter, Output, Plugin, PluginType};
-pub use error::PluginError;
+pub use error::{PluginError, PluginResult};
 pub use registry::PluginRegistry;
 pub use manager::PluginManager;
 pub use factory::PluginFactory;
@@ -18,7 +18,7 @@ pub use factory::PluginFactory;
 /// Re-exports for convenience
 pub mod prelude {
     pub use super::{Input, Filter, Output, Plugin, PluginType};
-    pub use super::{PluginError, PluginRegistry, PluginManager, PluginFactory};
+    pub use super::{PluginError, PluginResult, PluginRegistry, PluginManager, PluginFactory};
 }
 
 /// Plugin configuration structure

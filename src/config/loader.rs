@@ -214,8 +214,10 @@ filters: []
     
     #[test]
     fn test_env_overrides() {
-        std::env::set_var("GOHANGOUT_WORKERS", "8");
-        std::env::set_var("GOHANGOUT_BATCH_SIZE", "2000");
+        unsafe {
+            std::env::set_var("GOHANGOUT_WORKERS", "8");
+            std::env::set_var("GOHANGOUT_BATCH_SIZE", "2000");
+        }
         
         let yaml = r#"
 workers: 2
@@ -237,8 +239,10 @@ filters: []
         assert_eq!(config.batch_size, 2000);
         
         // Clean up
-        std::env::remove_var("GOHANGOUT_WORKERS");
-        std::env::remove_var("GOHANGOUT_BATCH_SIZE");
+        unsafe {
+            std::env::remove_var("GOHANGOUT_WORKERS");
+            std::env::remove_var("GOHANGOUT_BATCH_SIZE");
+        }
     }
     
     #[test]
