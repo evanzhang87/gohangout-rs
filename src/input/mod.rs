@@ -9,7 +9,7 @@ mod random;
 
 pub use stdin::StdinInput;
 pub use codec::{Decoder, JsonDecoder, PlainDecoder, LineDecoder, DecoderError};
-pub use random::{RandomInput, RandomMode, FieldType};
+pub use random::RandomInput;
 
 /// Re-exports for convenience
 pub mod prelude {

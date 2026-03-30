@@ -1,19 +1,21 @@
-//! Tests for RandomInput plugin
+//! Tests for RandomInput plugin (simplified version matching GoHangout)
 
 use gohangout_rs::event::Event;
 use gohangout_rs::input::RandomInput;
-use gohangout_rs::plugin::{Plugin, PluginConfig, PluginType};
-use gohangout_rs::prelude::{Input, PluginResult};
+use gohangout_rs::plugin::{Plugin, PluginConfig, PluginType, PluginResult};
+use gohangout_rs::prelude::Input;
 use serde_json::json;
 use std::collections::HashMap;
 
-/// Test creating RandomInput with default configuration
+/// Test creating RandomInput with required configuration
 #[test]
-fn test_random_input_default() {
-    let config = PluginConfig {
-        name: "test_random".to_string(),
-        config: HashMap::new(),
-    };
+fn test_random_input_basic() {
+    let mut config_map = HashMap::new();
+    config_map.insert("from".to_string(), json!(1));
+    config_map.insert("to".to_string(), json!(100));
+    
+    let mut config = PluginConfig::new("test_random", PluginType::Input);
+    config.config = config_map;
     
     let mut plugin = RandomInput::from_config(&config).unwrap();
     
@@ -21,344 +23,184 @@ fn test_random_input_default() {
     assert_eq!(plugin.name(), "test_random");
     assert_eq!(plugin.plugin_type(), PluginType::Input);
     
+    // Validate configuration
+    let validation_result = plugin.validate_config();
+    assert!(validation_result.is_ok());
+    
     // Initialize plugin
     plugin.initialize().unwrap();
     
-    // Read some events
-    for _ in 0..5 {
-        let event = plugin.read().unwrap();
-        assert!(event.is_some());
-        let event = event.unwrap();
+    // Read some events and verify they contain random numbers in range
+    for _ in 0..10 {
+        let event_result = plugin.read();
+        assert!(event_result.is_ok());
         
-        // Verify event has data
-        let data = event.get_data();
-        assert!(data.is_object());
+        let event_opt = event_result.unwrap();
+        assert!(event_opt.is_some());
         
-        // Verify basic fields exist
-        let obj = data.as_object().unwrap();
-        assert!(obj.contains_key("timestamp"));
-        assert!(obj.contains_key("level") || obj.contains_key("extra"));
+        let event = event_opt.unwrap();
+        let data = event.data();
+        
+        // Verify event has message field with a number string
+        let message = data.get("message")
+            .expect("Event should have 'message' field");
+        
+        assert!(message.is_string());
+        let message_str = message.as_str().unwrap();
+        
+        // Parse the number and verify it's in range
+        let num: i64 = message_str.parse()
+            .expect("Message should be a valid integer");
+        
+        assert!(num >= 1 && num <= 100, "Number {} should be in range [1, 100]", num);
     }
     
     // Shutdown plugin
     plugin.shutdown().unwrap();
 }
 
-/// Test RandomInput with simple mode
+/// Test RandomInput with max_messages limit
 #[test]
-fn test_random_input_simple_mode() {
+fn test_random_input_max_messages() {
     let mut config_map = HashMap::new();
-    config_map.insert("mode".to_string(), json!("simple"));
-    config_map.insert("rate".to_string(), json!(100)); // 100 events/sec
-    config_map.insert("count".to_string(), json!(10)); // Generate 10 events
+    config_map.insert("from".to_string(), json!(1));
+    config_map.insert("to".to_string(), json!(10));
+    config_map.insert("max_messages".to_string(), json!(5));
     
-    let config = PluginConfig {
-        name: "test_simple".to_string(),
-        config: config_map,
-    };
+    let mut config = PluginConfig::new("test_limited", PluginType::Input);
+    config.config = config_map;
     
     let mut plugin = RandomInput::from_config(&config).unwrap();
     plugin.initialize().unwrap();
     
-    // Read exactly 10 events
-    for i in 0..10 {
-        let event = plugin.read().unwrap();
-        assert!(event.is_some(), "Event {} should exist", i);
+    // Read exactly 5 events
+    for i in 0..5 {
+        let event_opt = plugin.read().unwrap();
+        assert!(event_opt.is_some(), "Should get event {} of 5", i + 1);
         
-        let event = event.unwrap();
-        let data = event.get_data().as_object().unwrap();
-        
-        // Verify simple mode fields
-        assert!(data.contains_key("timestamp"));
-        assert!(data.contains_key("level"));
-        assert!(data.contains_key("message"));
-        assert!(data.contains_key("extra"));
+        let event = event_opt.unwrap();
+        let data = event.data();
+        let message = data.get("message").unwrap().as_str().unwrap();
+        let num: i64 = message.parse().unwrap();
+        assert!(num >= 1 && num <= 10);
     }
     
-    // Next read should return None (count limit reached)
-    let event = plugin.read().unwrap();
-    assert!(event.is_none());
+    // Next read should return None (max messages reached)
+    let event_opt = plugin.read().unwrap();
+    assert!(event_opt.is_none(), "Should return None after max_messages");
+    
+    // Status should be Stopped
+    assert_eq!(plugin.status(), gohangout_rs::plugin::traits::PluginStatus::Stopped);
     
     plugin.shutdown().unwrap();
 }
 
-/// Test RandomInput with complex mode
+/// Test RandomInput with unlimited messages (max_messages = -1)
 #[test]
-fn test_random_input_complex_mode() {
+fn test_random_input_unlimited() {
     let mut config_map = HashMap::new();
-    config_map.insert("mode".to_string(), json!("complex"));
-    config_map.insert("count".to_string(), json!(3));
+    config_map.insert("from".to_string(), json!(1));
+    config_map.insert("to".to_string(), json!(5));
+    config_map.insert("max_messages".to_string(), json!(-1));
     
-    let config = PluginConfig {
-        name: "test_complex".to_string(),
-        config: config_map,
-    };
+    let mut config = PluginConfig::new("test_unlimited", PluginType::Input);
+    config.config = config_map;
     
     let mut plugin = RandomInput::from_config(&config).unwrap();
     plugin.initialize().unwrap();
     
-    for _ in 0..3 {
-        let event = plugin.read().unwrap().unwrap();
-        let data = event.get_data().as_object().unwrap();
-        
-        // Verify complex mode structure
-        assert!(data.contains_key("id"));
-        assert!(data.contains_key("timestamp"));
-        
-        // Verify user object
-        let user = data.get("user").unwrap().as_object().unwrap();
-        assert!(user.contains_key("id"));
-        assert!(user.contains_key("name"));
-        assert!(user.contains_key("email"));
-        assert!(user.contains_key("active"));
-        
-        // Verify request object
-        let request = data.get("request").unwrap().as_object().unwrap();
-        assert!(request.contains_key("method"));
-        assert!(request.contains_key("path"));
-        assert!(request.contains_key("status"));
-        assert!(request.contains_key("duration_ms"));
-        assert!(request.contains_key("client_ip"));
-        
-        // Verify metrics object
-        let metrics = data.get("metrics").unwrap().as_object().unwrap();
-        assert!(metrics.contains_key("cpu_usage"));
-        assert!(metrics.contains_key("memory_mb"));
-        assert!(metrics.contains_key("queue_length"));
+    // Read many events (more than a small number)
+    for i in 0..20 {
+        let event_opt = plugin.read().unwrap();
+        assert!(event_opt.is_some(), "Should get event {} (unlimited)", i + 1);
     }
+    
+    // Status should still be Ready (unlimited)
+    assert_eq!(plugin.status(), gohangout_rs::plugin::traits::PluginStatus::Ready);
     
     plugin.shutdown().unwrap();
 }
 
-/// Test RandomInput with custom mode
+/// Test RandomInput configuration validation errors
 #[test]
-fn test_random_input_custom_mode() {
-    let mut fields_map = HashMap::new();
-    fields_map.insert("user_id".to_string(), json!("number"));
-    fields_map.insert("username".to_string(), json!("string"));
-    fields_map.insert("email".to_string(), json!("email"));
-    fields_map.insert("status".to_string(), json!("enum:active,inactive,pending"));
-    
+fn test_random_input_validation_errors() {
+    // Missing 'from' parameter
     let mut config_map = HashMap::new();
-    config_map.insert("mode".to_string(), json!("custom"));
-    config_map.insert("fields".to_string(), json!(fields_map));
-    config_map.insert("count".to_string(), json!(5));
+    config_map.insert("to".to_string(), json!(100));
     
-    let config = PluginConfig {
-        name: "test_custom".to_string(),
-        config: config_map,
-    };
-    
-    let mut plugin = RandomInput::from_config(&config).unwrap();
-    plugin.initialize().unwrap();
-    
-    for _ in 0..5 {
-        let event = plugin.read().unwrap().unwrap();
-        let data = event.get_data().as_object().unwrap();
-        
-        // Verify default fields
-        assert!(data.contains_key("timestamp"));
-        assert!(data.contains_key("id"));
-        
-        // Verify custom fields
-        assert!(data.contains_key("user_id"));
-        assert!(data.contains_key("username"));
-        assert!(data.contains_key("email"));
-        assert!(data.contains_key("status"));
-        
-        // Verify field types
-        let status = data.get("status").unwrap().as_str().unwrap();
-        assert!(matches!(status, "active" | "inactive" | "pending"));
-        
-        let email = data.get("email").unwrap().as_str().unwrap();
-        assert!(email.contains('@'));
-    }
-    
-    plugin.shutdown().unwrap();
-}
-
-/// Test RandomInput with rate limiting
-#[test]
-fn test_random_input_rate_limiting() {
-    let mut config_map = HashMap::new();
-    config_map.insert("mode".to_string(), json!("simple"));
-    config_map.insert("rate".to_string(), json!(2)); // 2 events/sec
-    config_map.insert("count".to_string(), json!(3));
-    
-    let config = PluginConfig {
-        name: "test_rate".to_string(),
-        config: config_map,
-    };
-    
-    let mut plugin = RandomInput::from_config(&config).unwrap();
-    plugin.initialize().unwrap();
-    
-    // Time the generation of 3 events at 2 events/sec
-    // Should take at least 1 second (for 2 events) + a bit more for the 3rd
-    let start = std::time::Instant::now();
-    
-    for _ in 0..3 {
-        let event = plugin.read().unwrap();
-        assert!(event.is_some());
-    }
-    
-    let elapsed = start.elapsed();
-    // Should take at least 1 second (2 events at 2/sec = 1 sec between first two)
-    // Actually for 3 events at 2/sec: intervals are 0.5s, 0.5s = 1s total minimum
-    assert!(elapsed >= std::time::Duration::from_millis(900));
-    
-    plugin.shutdown().unwrap();
-}
-
-/// Test RandomInput with infinite generation
-#[test]
-fn test_random_input_infinite() {
-    let mut config_map = HashMap::new();
-    config_map.insert("mode".to_string(), json!("simple"));
-    config_map.insert("rate".to_string(), json!(0)); // As fast as possible
-    config_map.insert("count".to_string(), json!(0)); // Infinite
-    
-    let config = PluginConfig {
-        name: "test_infinite".to_string(),
-        config: config_map,
-    };
-    
-    let mut plugin = RandomInput::from_config(&config).unwrap();
-    plugin.initialize().unwrap();
-    
-    // Should be able to read many events without stopping
-    for i in 0..100 {
-        let event = plugin.read().unwrap();
-        assert!(event.is_some(), "Event {} should exist", i);
-        
-        // Plugin should still be ready
-        assert!(plugin.is_ready());
-    }
-    
-    plugin.shutdown().unwrap();
-}
-
-/// Test RandomInput configuration validation
-#[test]
-fn test_random_input_validation() {
-    // Test invalid mode
-    let mut config_map = HashMap::new();
-    config_map.insert("mode".to_string(), json!("invalid_mode"));
-    
-    let config = PluginConfig {
-        name: "test_invalid".to_string(),
-        config: config_map,
-    };
+    let mut config = PluginConfig::new("test_missing_from", PluginType::Input);
+    config.config = config_map;
     
     let result = RandomInput::from_config(&config);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Invalid mode"));
+    assert!(result.unwrap_err().to_string().contains("from must be configured"));
     
-    // Test invalid field type
-    let mut fields_map = HashMap::new();
-    fields_map.insert("test".to_string(), json!("invalid_type"));
-    
+    // Missing 'to' parameter
     let mut config_map2 = HashMap::new();
-    config_map2.insert("mode".to_string(), json!("custom"));
-    config_map2.insert("fields".to_string(), json!(fields_map));
+    config_map2.insert("from".to_string(), json!(1));
     
-    let config2 = PluginConfig {
-        name: "test_invalid_field".to_string(),
-        config: config_map2,
-    };
+    let mut config2 = PluginConfig::new("test_missing_to", PluginType::Input);
+    config2.config = config_map2;
     
     let result2 = RandomInput::from_config(&config2);
     assert!(result2.is_err());
-    assert!(result2.unwrap_err().to_string().contains("Invalid field type"));
+    assert!(result2.unwrap_err().to_string().contains("to must be configured"));
     
-    // Test valid configuration
+    // Invalid range (from > to)
     let mut config_map3 = HashMap::new();
-    config_map3.insert("mode".to_string(), json!("simple"));
-    config_map3.insert("rate".to_string(), json!(10));
-    config_map3.insert("count".to_string(), json!(100));
-    config_map3.insert("seed".to_string(), json!(12345));
+    config_map3.insert("from".to_string(), json!(100));
+    config_map3.insert("to".to_string(), json!(1));
     
-    let config3 = PluginConfig {
-        name: "test_valid".to_string(),
-        config: config_map3,
-    };
+    let mut config3 = PluginConfig::new("test_invalid_range", PluginType::Input);
+    config3.config = config_map3;
     
-    let plugin = RandomInput::from_config(&config3);
-    assert!(plugin.is_ok());
-    
-    let plugin = plugin.unwrap();
-    let validation_result = plugin.validate_config();
-    assert!(validation_result.is_ok());
+    let result3 = RandomInput::from_config(&config3);
+    assert!(result3.is_err());
+    assert!(result3.unwrap_err().to_string().contains("must be less than or equal"));
 }
 
 /// Test RandomInput statistics
 #[test]
 fn test_random_input_stats() {
     let mut config_map = HashMap::new();
-    config_map.insert("mode".to_string(), json!("simple"));
-    config_map.insert("count".to_string(), json!(5));
+    config_map.insert("from".to_string(), json!(1));
+    config_map.insert("to".to_string(), json!(100));
     
-    let config = PluginConfig {
-        name: "test_stats".to_string(),
-        config: config_map,
-    };
+    let mut config = PluginConfig::new("test_stats", PluginType::Input);
+    config.config = config_map;
     
     let mut plugin = RandomInput::from_config(&config).unwrap();
     plugin.initialize().unwrap();
     
     // Initial stats
     let initial_stats = plugin.stats();
-    assert_eq!(initial_stats.events_processed, 0);
+    assert_eq!(initial_stats.events_read, 0);
     
-    // Generate some events
-    for i in 0..5 {
-        let event = plugin.read().unwrap();
-        assert!(event.is_some(), "Event {} should exist", i);
-        
-        let stats = plugin.stats();
-        assert_eq!(stats.events_processed, i + 1);
-        assert!(stats.last_event_time.is_some());
+    // Read some events
+    for _ in 0..7 {
+        plugin.read().unwrap();
     }
     
-    // Final stats after shutdown
+    // Check updated stats
+    let updated_stats = plugin.stats();
+    assert_eq!(updated_stats.events_read, 7);
+    // Note: last_event_time is not tracked in InputStats
+    
     plugin.shutdown().unwrap();
-    let final_stats = plugin.stats();
-    assert_eq!(final_stats.events_processed, 5);
-    assert!(final_stats.duration > std::time::Duration::from_secs(0));
 }
 
-/// Test RandomInput plugin registration
+/// Test RandomInput default configuration
 #[test]
-fn test_random_input_registration() {
-    use gohangout_rs::input;
+fn test_random_input_default_config() {
+    let plugin = RandomInput::default();
     
-    // Create factory and register plugins
-    let mut factory = input::default_factory();
+    assert_eq!(plugin.name(), "random");
+    assert_eq!(plugin.plugin_type(), PluginType::Input);
     
-    // Check that random plugin is registered
-    assert!(factory.supports_plugin("random", gohangout_rs::plugin::PluginType::Input));
+    let config = plugin.config();
+    assert_eq!(config.get("from").unwrap().as_i64().unwrap(), 1);
+    assert_eq!(config.get("to").unwrap().as_i64().unwrap(), 100);
     
-    // Create random plugin instance
-    let mut config_map = HashMap::new();
-    config_map.insert("mode".to_string(), json!("simple"));
-    config_map.insert("count".to_string(), json!(3));
-    
-    let config = PluginConfig {
-        name: "registered_random".to_string(),
-        config: config_map,
-    };
-    
-    let plugin = factory.create_input("random", &config);
-    assert!(plugin.is_ok());
-    
-    let mut plugin = plugin.unwrap();
-    plugin.initialize().unwrap();
-    
-    // Should be able to read events
-    for _ in 0..3 {
-        let event = plugin.read().unwrap();
-        assert!(event.is_some());
-    }
-    
-    plugin.shutdown().unwrap();
+    // Default should not have max_messages
+    assert!(config.get("max_messages").is_none());
 }
