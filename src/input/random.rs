@@ -3,7 +3,8 @@
 use crate::event::Event;
 use crate::prelude::{PluginError, PluginResult, Input, InputStats, Plugin, PluginType};
 use crate::plugin::PluginConfig;
-use chrono::{DateTime, Utc};
+use crate::plugin::traits::PluginStatus;
+use chrono::Utc;
 use rand::distributions::Alphanumeric;
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
@@ -11,7 +12,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::time;
+
 use uuid::Uuid;
 
 /// Random data generation mode
@@ -104,10 +105,10 @@ impl FieldType {
                 if rng.gen_bool(0.5) {
                     Value::Number(rng.gen_range(0..=1000).into())
                 } else {
-                    Value::Number(rng.gen_range(0.0..=1000.0).into())
+                    Value::Number(serde_json::Number::from_f64(rng.gen_range(0.0..=1000.0)).unwrap_or(serde_json::Number::from(0)))
                 }
             }
-            Self::Boolean => Value::Bool(rng.gen()),
+            Self::Boolean => Value::Bool(rng.r#gen()),
             Self::DateTime => {
                 let now = Utc::now();
                 let offset = rng.gen_range(-86400..86400); // +/- 1 day
@@ -288,7 +289,7 @@ impl RandomInput {
         data.insert("message".to_string(), json!(message));
         data.insert("extra".to_string(), json!(extra_num));
         
-        Event::new(data)
+        Event::new(Value::Object(data.into_iter().collect()))
     }
     
     /// Generate a complex event
@@ -311,7 +312,7 @@ impl RandomInput {
         
         let domains = ["example.com", "company.org", "test.net"];
         let domain = domains[self.rng.gen_range(0..domains.len())];
-        let username: String = self.rng
+        let username: String = self.rng.clone()
             .sample_iter(&Alphanumeric)
             .take(8)
             .map(char::from)
@@ -345,7 +346,7 @@ impl RandomInput {
         
         data.insert("metrics".to_string(), json!(metrics));
         
-        Event::new(data)
+        Event::new(Value::Object(data.into_iter().collect()))
     }
     
     /// Generate a custom event based on field definitions
@@ -361,7 +362,7 @@ impl RandomInput {
             data.insert(field_name.clone(), field_type.generate_random(&mut self.rng));
         }
         
-        Event::new(data)
+        Event::new(Value::Object(data.into_iter().collect()))
     }
     
     /// Apply rate limiting if needed
@@ -423,16 +424,16 @@ impl Plugin for RandomInput {
         // Update statistics
         let elapsed = self.start_time.elapsed();
         let mut stats = self.stats.lock().unwrap();
-        stats.duration = elapsed;
-        stats.events_processed = self.generated;
+        stats.read_time_ms = elapsed.as_millis() as u64;
+        stats.events_read = self.generated;
         Ok(())
     }
     
-    fn status(&self) -> crate::plugin::PluginStatus {
+    fn status(&self) -> PluginStatus {
         if self.count > 0 && self.generated >= self.count {
-            crate::plugin::PluginStatus::Finished
+            PluginStatus::Stopped
         } else {
-            crate::plugin::PluginStatus::Ready
+            PluginStatus::Ready
         }
     }
 }
@@ -457,8 +458,8 @@ impl Input for RandomInput {
         // Update statistics
         self.generated += 1;
         let mut stats = self.stats.lock().unwrap();
-        stats.events_processed = self.generated;
-        stats.last_event_time = Some(chrono::Utc::now());
+        stats.events_read = self.generated;
+        // InputStats doesn't have last_event_time field, skipping
         
         Ok(Some(event))
     }
@@ -476,6 +477,7 @@ impl Default for RandomInput {
     fn default() -> Self {
         let config = PluginConfig {
             name: "random".to_string(),
+            plugin_type: PluginType::Input,
             config: HashMap::new(),
         };
         

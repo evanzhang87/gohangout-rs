@@ -171,60 +171,8 @@ impl Default for PluginFactory {
 // Note: StdinInput is now defined in src/input/stdin.rs
 // We'll use the one from the input module
 
-/// Standard output plugin (writes to stdout)
-pub struct StdoutOutput {
-    name: String,
-    config: HashMap<String, serde_json::Value>,
-}
-
-impl StdoutOutput {
-    /// Create a new stdout output plugin
-    pub fn new() -> Self {
-        Self {
-            name: "stdout".to_string(),
-            config: HashMap::new(),
-        }
-    }
-}
-
-impl crate::plugin::Plugin for StdoutOutput {
-    fn name(&self) -> &str {
-        &self.name
-    }
-    
-    fn config(&self) -> &HashMap<String, serde_json::Value> {
-        &self.config
-    }
-    
-    fn plugin_type(&self) -> crate::plugin::PluginType {
-        crate::plugin::PluginType::Output
-    }
-    
-    fn initialize(&mut self) -> PluginResult<()> {
-        Ok(())
-    }
-    
-    fn shutdown(&mut self) -> PluginResult<()> {
-        Ok(())
-    }
-    
-    fn validate_config(&self) -> PluginResult<()> {
-        Ok(())
-    }
-}
-
-impl Output for StdoutOutput {
-    fn write(&self, event: Event) -> PluginResult<()> {
-        // Simplified implementation
-        // In a real implementation, this would write to stdout
-        println!("{}", event.to_json()?);
-        Ok(())
-    }
-    
-    fn flush(&self) -> PluginResult<()> {
-        Ok(())
-    }
-}
+// Note: StdoutOutput is now defined in src/output/stdout.rs
+// We'll use the one from the output module
 
 /// Add field filter plugin
 pub struct AddFieldFilter {
@@ -302,7 +250,7 @@ pub fn default_factory() -> PluginFactory {
     
     // Register built-in output plugins
     factory.register_output("stdout", || {
-        Ok(Box::new(StdoutOutput::new()) as Box<dyn Output>)
+        Ok(Box::new(crate::output::StdoutOutput::default()) as Box<dyn Output>)
     });
     
     factory
