@@ -44,7 +44,7 @@ impl PluginFactory {
         // Create plugin instance
         let mut plugin = self.registry.create_input(config.name())?;
         
-        // Initialize plugin
+        // Initialize plugin (configuration should be applied during initialization)
         plugin.initialize()?;
         
         Ok(plugin)

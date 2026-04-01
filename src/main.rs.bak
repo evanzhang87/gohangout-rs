@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use gohangout_rs::event::Event;
 use gohangout_rs::input::RandomInput;
 use gohangout_rs::output::StdoutOutput;
-use gohangout_rs::plugin::{PluginConfig, PluginFactory, PluginType, Input, Output, Plugin};
+use gohangout_rs::plugin::{PluginConfig, PluginFactory, PluginType, Input, Output};
 use serde_json::json;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -107,34 +107,14 @@ async fn run_with_config(config_path: &str) -> Result<()> {
         println!("🔧 Creating input plugin #{} (type: {})...", i + 1, input_config.r#type);
         
         let plugin_config = gohangout_rs::plugin::PluginConfig::new(
-            &input_config.r#type,  // 使用配置中的类型名，如 "stdin"
+            &format!("input_{}", i),
             gohangout_rs::plugin::PluginType::Input,
         );
         let mut plugin_config = plugin_config;
         plugin_config.config = input_config.config.clone();
         
-        // 根据插件类型直接创建
-        let input_plugin: Box<dyn gohangout_rs::plugin::Input> = match input_config.r#type.as_str() {
-            "stdin" => {
-                let mut plugin = gohangout_rs::input::StdinInput::from_config(&plugin_config)
-                    .with_context(|| "Failed to create StdinInput from config")?;
-                plugin.initialize()
-                    .map_err(|e| anyhow::anyhow!("Failed to initialize StdinInput: {}", e))?;
-                Box::new(plugin)
-            }
-            "random" => {
-                let mut plugin = gohangout_rs::input::RandomInput::from_config(&plugin_config)
-                    .with_context(|| "Failed to create RandomInput from config")?;
-                plugin.initialize()
-                    .map_err(|e| anyhow::anyhow!("Failed to initialize RandomInput: {}", e))?;
-                Box::new(plugin)
-            }
-            _ => {
-                // 回退到工厂
-                factory.create_input(&plugin_config)
-                    .with_context(|| format!("Failed to create input plugin '{}'", input_config.r#type))?
-            }
-        };
+        let input_plugin = factory.create_input(&plugin_config)
+            .with_context(|| format!("Failed to create input plugin '{}'", input_config.r#type))?;
         
         input_plugins.push(input_plugin);
         println!("   ✅ Input plugin created successfully");
@@ -146,27 +126,14 @@ async fn run_with_config(config_path: &str) -> Result<()> {
         println!("🔧 Creating output plugin #{} (type: {})...", i + 1, output_config.r#type);
         
         let plugin_config = gohangout_rs::plugin::PluginConfig::new(
-            &output_config.r#type,  // 使用配置中的类型名，如 "stdout"
+            &format!("output_{}", i),
             gohangout_rs::plugin::PluginType::Output,
         );
         let mut plugin_config = plugin_config;
         plugin_config.config = output_config.config.clone();
         
-        // 根据插件类型直接创建
-        let output_plugin: Box<dyn gohangout_rs::plugin::Output> = match output_config.r#type.as_str() {
-            "stdout" => {
-                let mut plugin = gohangout_rs::output::StdoutOutput::from_config(&plugin_config)
-                    .with_context(|| "Failed to create StdoutOutput from config")?;
-                plugin.initialize()
-                    .map_err(|e| anyhow::anyhow!("Failed to initialize StdoutOutput: {}", e))?;
-                Box::new(plugin)
-            }
-            _ => {
-                // 回退到工厂
-                factory.create_output(&plugin_config)
-                    .with_context(|| format!("Failed to create output plugin '{}'", output_config.r#type))?
-            }
-        };
+        let output_plugin = factory.create_output(&plugin_config)
+            .with_context(|| format!("Failed to create output plugin '{}'", output_config.r#type))?;
         
         output_plugins.push(output_plugin);
         println!("   ✅ Output plugin created successfully");
@@ -258,8 +225,7 @@ async fn run_demo() -> Result<()> {
     
     let mut stdout_output = StdoutOutput::from_config(&stdout_plugin_config)
         .context("Failed to create StdoutOutput")?;
-    stdout_output.initialize()
-        .map_err(|e| anyhow::anyhow!("Failed to initialize {}: {}", stringify!(stdout_output), e))?;
+    stdout_output.initialize()?;
     
     println!("3. Processing 10 random events...");
     println!("────────────────────────────────");
@@ -292,10 +258,8 @@ async fn run_demo() -> Result<()> {
     println!("────────────────────────────────");
     println!("4. Cleaning up...");
     
-    random_input.shutdown()
-        .map_err(|e| anyhow::anyhow!("Failed to shutdown {}: {}", stringify!(random_input), e))?;
-    stdout_output.shutdown()
-        .map_err(|e| anyhow::anyhow!("Failed to shutdown {}: {}", stringify!(stdout_output), e))?;
+    random_input.shutdown()?;
+    stdout_output.shutdown()?;
     
     println!("✅ Demonstration completed successfully!");
     println!("📊 Statistics:");
@@ -321,8 +285,7 @@ async fn run_tests() -> Result<()> {
         plugin_config.config = config;
         
         let mut random = RandomInput::from_config(&plugin_config)?;
-        random.initialize()
-        .map_err(|e| anyhow::anyhow!("Failed to initialize {}: {}", stringify!(random), e))?;
+        random.initialize()?;
         
         for _ in 0..5 {
             let event_opt = random.read()?;
@@ -334,8 +297,7 @@ async fn run_tests() -> Result<()> {
             assert!(num >= 1 && num <= 10);
         }
         
-        random.shutdown()
-        .map_err(|e| anyhow::anyhow!("Failed to shutdown {}: {}", stringify!(random), e))?;
+        random.shutdown()?;
         println!("   ✅ RandomInput test passed");
     }
     
@@ -349,8 +311,7 @@ async fn run_tests() -> Result<()> {
         plugin_config.config = config;
         
         let mut stdout = StdoutOutput::from_config(&plugin_config)?;
-        stdout.initialize()
-        .map_err(|e| anyhow::anyhow!("Failed to initialize {}: {}", stringify!(stdout), e))?;
+        stdout.initialize()?;
         
         let mut event_data = HashMap::new();
         event_data.insert("message".to_string(), json!("Test message"));
@@ -359,8 +320,7 @@ async fn run_tests() -> Result<()> {
         
         stdout.write(event)?;
         stdout.flush()?;
-        stdout.shutdown()
-        .map_err(|e| anyhow::anyhow!("Failed to shutdown {}: {}", stringify!(stdout), e))?;
+        stdout.shutdown()?;
         
         println!("   ✅ StdoutOutput test passed");
     }

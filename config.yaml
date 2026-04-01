@@ -1,0 +1,20 @@
+# GoHangout-rs configuration for performance testing
+workers: 4
+batch_size: 1000
+buffer_size: 10000
+
+inputs:
+  - type: stdin
+    config:
+      codec: "json"
+      batch_size: 100
+      timeout_ms: 1000
+
+filters: []
+
+outputs:
+  - type: stdout
+    config:
+      format: "json"
+      color: false
+      pretty: false

@@ -19,6 +19,7 @@ pub mod prelude {
 /// Register built-in input plugins with the plugin factory
 pub fn register_plugins(factory: &mut crate::plugin::PluginFactory) {
     factory.register_input("stdin", || {
+        // 注意：这里创建的是默认实例，配置将在 from_config 中应用
         Ok(Box::new(StdinInput::default()) as Box<dyn crate::plugin::Input>)
     });
     

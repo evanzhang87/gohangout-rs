@@ -97,6 +97,11 @@ impl StdinInput {
         self.buffer_size
     }
     
+    /// Get mutable access to configuration (for factory)
+    pub fn config_mut(&mut self) -> &mut HashMap<String, Value> {
+        &mut self.config
+    }
+    
     /// Get additional fields
     pub fn add_fields(&self) -> &HashMap<String, Value> {
         &self.add_fields
@@ -227,6 +232,15 @@ impl Plugin for StdinInput {
     }
     
     fn initialize(&mut self) -> PluginResult<()> {
+        // Recreate decoder based on config if codec is specified
+        if let Some(codec_value) = self.config.get("codec") {
+            if let Some(codec_type) = codec_value.as_str() {
+                let decoder_box = crate::input::codec::create_decoder(codec_type)
+                    .map_err(|e| PluginError::configuration_error(&e.to_string()))?;
+                self.decoder = Arc::from(decoder_box);
+            }
+        }
+        
         // Start the async reader
         self.start_reader()?;
         Ok(())

@@ -44,6 +44,14 @@ impl std::fmt::Display for PluginType {
     }
 }
 
+/// Trait for plugins that can be created from configuration
+pub trait FromConfig: Plugin {
+    /// Create plugin from configuration
+    fn from_config(config: &crate::plugin::PluginConfig) -> PluginResult<Self>
+    where
+        Self: Sized;
+}
+
 /// Base plugin trait
 pub trait Plugin: Send + Sync {
     /// Get plugin name

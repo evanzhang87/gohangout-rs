@@ -4,6 +4,7 @@ use crate::plugin::error::{PluginError, PluginResult};
 use crate::plugin::traits::{
     Input, Filter, Output, InputConstructor, FilterConstructor, OutputConstructor, PluginType,
 };
+use crate::plugin::PluginConfig;
 use std::collections::HashMap;
 
 /// Plugin registry for managing plugin registrations
