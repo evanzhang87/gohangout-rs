@@ -54,11 +54,27 @@ pub trait Formatter: Send + Sync {
     /// Format an event
     fn format(&self, event: &Event) -> Result<String, FormatError>;
     
+    /// Format an event, ensuring @timestamp exists
+    fn format_with_timestamp(&self, event: &Event) -> Result<String, FormatError> {
+        let mut event_clone = event.clone();
+        event_clone.ensure_timestamp();
+        self.format(&event_clone)
+    }
+    
     /// Format multiple events
     fn format_batch(&self, events: &[Event]) -> Result<String, FormatError> {
         let mut results = Vec::new();
         for event in events {
             results.push(self.format(event)?);
+        }
+        Ok(results.join("\n"))
+    }
+    
+    /// Format multiple events, ensuring @timestamp exists for each
+    fn format_batch_with_timestamp(&self, events: &[Event]) -> Result<String, FormatError> {
+        let mut results = Vec::new();
+        for event in events {
+            results.push(self.format_with_timestamp(event)?);
         }
         Ok(results.join("\n"))
     }

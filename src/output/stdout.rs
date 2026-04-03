@@ -266,8 +266,8 @@ impl Plugin for StdoutOutput {
 
 impl Output for StdoutOutput {
     fn write(&self, event: Event) -> PluginResult<()> {
-        // Format the event
-        let formatted = self.formatter.format(&event)
+        // Format the event with ensured @timestamp
+        let formatted = self.formatter.format_with_timestamp(&event)
             .map_err(|e| PluginError::ExecutionError(
                 format!("Failed to format event: {}", e)
             ))?;
@@ -307,8 +307,8 @@ impl Output for StdoutOutput {
                 let events_to_flush = buffer.split_off(0);
                 drop(buffer); // Release lock
                 
-                // Format and write
-                let formatted = self.formatter.format_batch(&events_to_flush)
+                // Format and write with ensured @timestamp
+                let formatted = self.formatter.format_batch_with_timestamp(&events_to_flush)
                     .map_err(|e| PluginError::ExecutionError(
                         format!("Failed to format batch: {}", e)
                     ))?;
@@ -336,8 +336,8 @@ impl Output for StdoutOutput {
             let events = std::mem::take(&mut *buffer);
             drop(buffer); // Release lock
             
-            // Format and write
-            let formatted = self.formatter.format_batch(&events)
+            // Format and write with ensured @timestamp
+            let formatted = self.formatter.format_batch_with_timestamp(&events)
                 .map_err(|e| PluginError::ExecutionError(
                     format!("Failed to format batch during flush: {}", e)
                 ))?;

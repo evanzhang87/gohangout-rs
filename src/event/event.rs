@@ -1,6 +1,6 @@
 //! Event structure for GoHangout-rs
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, FixedOffset};
 use serde_json::Value;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -138,6 +138,23 @@ impl Event {
         }
     }
     
+    /// Ensure the event data contains @timestamp field
+    /// If the event already has @timestamp, keep it
+    /// If not, add @timestamp with current time in the specified format
+    pub fn ensure_timestamp(&mut self) {
+        if !self.contains("@timestamp") {
+            // Get current time in Asia/Shanghai timezone (+08:00)
+            let utc_now = Utc::now();
+            let shanghai_offset = FixedOffset::east_opt(8 * 3600).unwrap();
+            let shanghai_time = utc_now.with_timezone(&shanghai_offset);
+            
+            // Format with nanosecond precision
+            let timestamp_str = format!("{}", shanghai_time.to_rfc3339_opts(chrono::SecondsFormat::Nanos, true));
+            
+            self.set("@timestamp", Value::String(timestamp_str));
+        }
+    }
+    
     /// Convert event to JSON string
     pub fn to_json(&self) -> serde_json::Result<String> {
         let event_json = serde_json::json!({
@@ -257,5 +274,33 @@ mod tests {
         assert_eq!(event1.get("a").unwrap(), 1);
         assert_eq!(event1.get("b").unwrap(), 2);
         assert_eq!(event1.get_metadata("host").unwrap(), "server1");
+    }
+    
+    #[test]
+    fn test_ensure_timestamp() {
+        // Test 1: Event without @timestamp
+        let mut event1 = Event::new(json!({"message": "test"}));
+        assert!(!event1.contains("@timestamp"));
+        
+        event1.ensure_timestamp();
+        assert!(event1.contains("@timestamp"));
+        
+        let timestamp = event1.get("@timestamp").unwrap();
+        assert!(timestamp.is_string());
+        
+        // Check format: should match RFC3339 with nanoseconds and timezone
+        let timestamp_str = timestamp.as_str().unwrap();
+        assert!(timestamp_str.contains("T"));
+        assert!(timestamp_str.contains("+08:00")); // Shanghai timezone
+        
+        // Test 2: Event with existing @timestamp
+        let existing_timestamp = "2026-04-03T11:59:23.464765211+08:00";
+        let mut event2 = Event::new(json!({
+            "message": "test",
+            "@timestamp": existing_timestamp
+        }));
+        
+        event2.ensure_timestamp();
+        assert_eq!(event2.get("@timestamp").unwrap(), existing_timestamp);
     }
 }
